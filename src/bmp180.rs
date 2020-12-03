@@ -53,6 +53,7 @@ impl Mode {
     }
 }
 
+/// BMP180, or BMP085.
 pub struct BMP180<I> {
     device: I,
     mode: Mode,
@@ -177,12 +178,14 @@ impl<I: Write + WriteRead> BMP180<I> {
         p as i32
     }
 
-    pub fn calculate_altitude<D: DelayMs<u16>>(&mut self, delay: &mut D, sealevel_pa: i32) -> f32 {
+    /// Calculate absolute altitude
+    pub fn calculate_altitude<D: DelayMs<u16>>(&mut self, delay: &mut D, sealevel_pa: f32) -> f32 {
         let pa = self.get_pressure(delay) as f32;
-        44330.0 * (1.0 - (pa / (sealevel_pa as f32)).pow(1.0 / 5.255))
+        44330.0 * (1.0 - (pa / sealevel_pa).pow(1.0 / 5.255))
     }
 
-    pub fn read_sealevel_pressure<D: DelayMs<u16>>(
+    /// Calculate pressure at sea level
+    pub fn calculate_sealevel_pressure<D: DelayMs<u16>>(
         &mut self,
         delay: &mut D,
         altitude_m: f32,
