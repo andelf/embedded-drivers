@@ -1,0 +1,13 @@
+[package]
+name = "embedded-driver"
+version = "0.1.0"
+authors = ["Andelf <andelf@gmail.com>"]
+edition = "2018"
+license = "MIT OR Apache-2.0"
+keywords = ["embedded-hal-driver"]
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+nb = "1"
+embedded-hal = { version = "0.2", features = ["unproven"] }
