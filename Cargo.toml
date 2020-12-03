@@ -1,13 +1,17 @@
 [package]
-name = "embedded-driver"
+name = "embedded-drivers"
 version = "0.1.0"
 authors = ["Andelf <andelf@gmail.com>"]
 edition = "2018"
 license = "MIT OR Apache-2.0"
 keywords = ["embedded-hal-driver"]
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+description = "Platform-agnostic Rust drivers for embedded."
+readme = "README.md"
+categories = ["embedded", "hardware-support", "no-std"]
+repository = "https://github.com/andelf/embedded-drivers"
+homepage = "https://github.com/andelf/embedded-drivers"
 
 [dependencies]
 nb = "1"
 embedded-hal = { version = "0.2", features = ["unproven"] }
+num-traits = { version = "0.2.14", default-features = false, features = ["libm"] }
