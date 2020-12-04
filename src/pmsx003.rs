@@ -43,10 +43,9 @@ where
     pub fn read_measurements(&mut self) -> Result<Measurements, ()> {
         loop {
             self.read_until(PREFIX1);
-            if let Ok(b) = self.read_byte() {
-                if b == PREFIX2 {
-                    break;
-                }
+            match self.read_byte() {
+                Ok(b) if b == PREFIX2 => break,
+                _ => continue,
             }
         }
         let mut sum: u16 = (PREFIX1 + PREFIX2) as u16;
@@ -80,6 +79,10 @@ where
             db5_0_um: u16::from_be_bytes(buf[22..24].try_into().unwrap()),
             db10_um: u16::from_be_bytes(buf[24..26].try_into().unwrap()),
         })
+    }
+
+    pub fn release(self) -> S {
+        self.serial
     }
 
     fn read_until(&mut self, byte: u8) {

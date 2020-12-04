@@ -294,6 +294,10 @@ where
         self.configure(delay)
     }
 
+    pub fn release(self) -> I2C {
+        self.i2c
+    }
+
     fn verify_chip_id(&mut self) -> Result<(), Error<E>> {
         let chip_id = self.read_register(BME280_CHIP_ID_ADDR)?;
         if chip_id == BME280_CHIP_ID || chip_id == BMP280_CHIP_ID {
