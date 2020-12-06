@@ -211,17 +211,17 @@ impl<I: Write + WriteRead + Read> BMP180<I> {
 
     fn read_i16(&mut self, reg: u8) -> i16 {
         let mut buf = [0u8; 2];
-        buf[0] = self.read_u8(reg);
-        buf[1] = self.read_u8(reg + 1);
-        // let _ = self.device.write_read(BMP180_I2CADDR, &[reg], &mut buf[..]);
+        // buf[0] = self.read_u8(reg);
+        // buf[1] = self.read_u8(reg + 1);
+        let _ = self.device.write_read(BMP180_I2CADDR, &[reg], &mut buf[..]);
         i16::from_be_bytes(buf)
     }
 
     fn read_u16(&mut self, reg: u8) -> u16 {
         let mut buf = [0u8; 2];
-        buf[0] = self.read_u8(reg);
-        buf[1] = self.read_u8(reg + 1);
-        // let _ = self.device.write_read(BMP180_I2CADDR, &[reg], &mut buf[..]);
+        // buf[0] = self.read_u8(reg);
+        // buf[1] = self.read_u8(reg + 1);
+        let _ = self.device.write_read(BMP180_I2CADDR, &[reg], &mut buf[..]);
         u16::from_be_bytes(buf)
     }
 }

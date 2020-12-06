@@ -29,6 +29,13 @@ pub struct Measurements {
     pub db10_um: u16,
 }
 
+impl Measurements {
+    // When the sensor is just started, all db*-um data will be zero.
+    pub fn is_ready(&self) -> bool {
+        self.db0_3_um != 0 || self.db0_5_um != 0 || self.db1_0_um != 0
+    }
+}
+
 impl<S> PMSx003<S>
 where
     S: serial::Read<u8> + serial::Write<u8>,
