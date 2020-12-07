@@ -2,9 +2,12 @@
 //!
 //! Ref: https://docs.espressif.com/projects/esp-at/en/latest/AT_Command_Set/index.html
 
+use core::fmt::Write;
 use core::str;
 use embedded_hal::serial;
 use nb::block;
+
+use crate::ByteMutWriter;
 
 const CR: u8 = 0x0d;
 const LF: u8 = 0x0a;
@@ -15,6 +18,8 @@ pub enum EspAtError<ER, EW> {
     BufOverflow,
     NoConnection,
     Error,
+    DirtyData,
+    Read,
     SerialRead(ER),
     SerialWrite(EW),
 }
@@ -38,6 +43,7 @@ impl<ER, EW> From<core::convert::Infallible> for EspAtError<ER, EW> {
 /// esp-at driver for ESP32, ESP8266, ESP8285.
 pub struct EspAt<S> {
     serial: S,
+    cursor: usize,
     read_buf: [u8; 1024],
 }
 
@@ -48,6 +54,7 @@ where
     pub fn new(serial: S) -> Self {
         Self {
             serial,
+            cursor: 0,
             read_buf: [0u8; 1024],
         }
     }
@@ -91,18 +98,24 @@ where
         block!(self.serial.read()).map_err(EspAtError::from_read)
     }
 
+    pub fn last_read(&self) -> &str {
+        unsafe { str::from_utf8_unchecked(&self.read_buf[0..self.cursor]) }
+    }
+
     pub fn read_response(&mut self) -> Result<&str, EspAtError<ER, EW>> {
         let buflen = self.read_buf.len();
+        self.cursor = 0;
         let mut i = 0;
         loop {
             match self.read_byte()? {
                 LF if i >= 1 && self.read_buf[i - 1] == CR => {
                     if i >= 3 && &self.read_buf[i - 3..i - 1] == b"OK" {
-                        // remove "OK" and trailing spaces
                         let resp = unsafe { str::from_utf8_unchecked(&self.read_buf[0..(i - 3)]) };
+                        self.cursor = i - 3;
                         return Ok(resp.trim_end());
                     }
                     if i >= 6 && &self.read_buf[i - 6..i - 1] == b"ERROR" {
+                        self.cursor = i - 6;
                         return Err(EspAtError::Error);
                     }
                     if i >= 10 && &self.read_buf[i - 10..i - 1] == b"busy p..." {
@@ -122,6 +135,34 @@ where
                 return Err(EspAtError::BufOverflow);
             }
         }
+    }
+
+    fn read_until(&mut self, c: u8) -> Result<usize, EspAtError<ER, EW>> {
+        let buflen = self.read_buf.len();
+        let mut i = 0;
+        loop {
+            let b = self.read_byte()?;
+            self.read_buf[i] = b;
+            if b == c {
+                return Ok(i);
+            }
+            i += 1;
+            if i >= buflen {
+                return Err(EspAtError::BufOverflow);
+            }
+        }
+    }
+
+    fn read_nbytes(&mut self, n: usize) -> Result<&[u8], EspAtError<ER, EW>> {
+        if n > self.read_buf.len() {
+            self.skip_to_next();
+            return Err(EspAtError::BufOverflow);
+        }
+
+        for i in 0..n {
+            self.read_buf[i] = self.read_byte()?;
+        }
+        Ok(&self.read_buf[0..n])
     }
 
     pub fn skip_to_next(&mut self) {
@@ -226,8 +267,77 @@ where
         self.write_quoted_str(host)?;
         self.write_crlf()?;
 
-        self.read_response()
-            .map(|payload| payload[6..].parse().unwrap_or(255))
+        self.read_response().map(|payload| {
+            if payload.starts_with("+PING:") {
+                payload[6..].parse().unwrap_or(255)
+            } else {
+                payload[1..].parse().unwrap_or(255)
+            }
+        })
+    }
+
+    pub fn tcp_send(&mut self, host: &str, port: u16, buf: &[u8]) -> Result<(), EspAtError<ER, EW>> {
+        self.connect_tcp(host, port).map_err(|_| EspAtError::NoConnection)?;
+        self.send(buf)?;
+        self.read()?;
+        self.close()
+    }
+
+    pub fn connect_tcp(&mut self, host: &str, port: u16) -> Result<(), EspAtError<ER, EW>> {
+        self.write_all(b"AT+CIPSTART=\"TCP\",")?;
+        self.write_quoted_str(host)?;
+        self.write_byte(b',')?;
+        {
+            let mut data = [0u8; 6];
+            let mut buf = ByteMutWriter::new(&mut data[..]);
+            let _ = write!(buf, "{}", port);
+            self.write_str(buf.as_str())?;
+        }
+        self.write_crlf()?;
+
+        self.read_response().map(|_| ()).or_else(|err| {
+            if self.last_read().contains("ALREADY CONNECTED") {
+                Ok(())
+            } else {
+                Err(err)
+            }
+        })
+    }
+
+    /// AT+CIPSEND=x
+    pub fn send(&mut self, data: &[u8]) -> Result<(), EspAtError<ER, EW>> {
+        {
+            let mut buf = [0u8; 24];
+            let mut buf = ByteMutWriter::new(&mut buf[..]);
+            let _ = write!(buf, "AT+CIPSEND={}", data.len());
+            self.write_str(buf.as_str())?;
+        }
+        self.write_crlf()?;
+        self.read_until(b'>')?;
+        self.write_all(data)?;
+
+        self.read_response().map(|_| ())
+    }
+
+    pub fn read(&mut self) -> Result<&[u8], EspAtError<ER, EW>> {
+        // +IPD,103: ...
+        self.read_until(b'+')?;
+        let cursor = self.read_until(b':')?;
+        let nbytes = unsafe {
+            str::from_utf8_unchecked(&self.read_buf[4..cursor])
+                .parse()
+                .map_err(|_| EspAtError::DirtyData)?
+        };
+
+        self.read_nbytes(nbytes)
+    }
+
+    /// AT+CIPCLOSE
+    pub fn close(&mut self) -> Result<(), EspAtError<ER, EW>> {
+        self.write_all(b"AT+CIPCLOSE")?;
+        self.write_crlf()?;
+
+        self.read_response().map(|_| ())
     }
 
     /// AT+HTTPCLIENT
