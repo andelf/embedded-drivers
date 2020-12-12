@@ -3,11 +3,14 @@
 use embedded_hal::blocking::delay::DelayUs;
 use embedded_hal::digital::v2::{InputPin, OutputPin};
 
-const ROM_CMD_SEARCH_ROM: u8 = 0xf0;
-const ROM_CMD_READ_ROM: u8 = 0x33;
-const ROM_CMD_MATCH_ROM: u8 = 0x55;
-const ROM_CMD_SKIP_ROM: u8 = 0xcc;
-const ROM_CMD_ALARM_SEARCH: u8 = 0xec;
+const ADDRESS_BYTES: u8 = 8;
+const ADDRESS_BITS: u8 = ADDRESS_BYTES * 8;
+
+pub const ROM_CMD_SEARCH_ROM: u8 = 0xf0;
+pub const ROM_CMD_READ_ROM: u8 = 0x33;
+pub const ROM_CMD_MATCH_ROM: u8 = 0x55;
+pub const ROM_CMD_SKIP_ROM: u8 = 0xcc;
+pub const ROM_CMD_ALARM_SEARCH: u8 = 0xec;
 
 // TODO, handle errors
 pub trait OneWirePinExt {
@@ -89,15 +92,164 @@ enum SearchState {
     End,
 }
 
-pub struct DeviceSearch<'a, P: OneWirePinExt> {
+pub struct DeviceSearch<'a, P: OneWirePinExt, D: DelayUs<u16>> {
     address: [u8; 8],
     discrepancies: [u8; 8],
     state: SearchState,
     port: &'a mut OneWire<P>,
-    delay: &'a mut DelayUs<u16>,
+    delay: &'a mut D,
 }
 
-impl<'a, P: OneWirePinExt> DeviceSearch<'a, P> {}
+impl<'a, P: OneWirePinExt, D: DelayUs<u16>> DeviceSearch<'a, P, D> {
+    fn is_bit_set(array: &[u8], bit: u8) -> bool {
+        if bit / 8 >= array.len() as u8 {
+            return false;
+        }
+        let index = bit / 8;
+        let offset = bit % 8;
+        array[index as usize] & (0x01 << offset) != 0x00
+    }
+
+    fn is_bit_set_in_address(&self, bit: u8) -> bool {
+        Self::is_bit_set(&self.address, bit)
+    }
+
+    fn set_bit_in_address(&mut self, bit: u8) {
+        Self::set_bit(&mut self.address, bit);
+    }
+
+    fn reset_bit_in_address(&mut self, bit: u8) {
+        Self::reset_bit(&mut self.address, bit);
+    }
+
+    fn write_bit_in_address(&mut self, bit: u8, value: bool) {
+        if value {
+            self.set_bit_in_address(bit);
+        } else {
+            self.reset_bit_in_address(bit);
+        }
+    }
+
+    fn is_bit_set_in_discrepancies(&self, bit: u8) -> bool {
+        Self::is_bit_set(&self.discrepancies, bit)
+    }
+
+    fn set_bit_in_discrepancy(&mut self, bit: u8) {
+        Self::set_bit(&mut self.discrepancies, bit);
+    }
+
+    fn reset_bit_in_discrepancy(&mut self, bit: u8) {
+        Self::reset_bit(&mut self.discrepancies, bit);
+    }
+
+    fn last_discrepancy(&self) -> Option<u8> {
+        let mut result = None;
+        for i in 0..ADDRESS_BITS {
+            if self.is_bit_set_in_discrepancies(i) {
+                result = Some(i);
+            }
+        }
+        result
+    }
+
+    fn set_bit(array: &mut [u8], bit: u8) {
+        if bit / 8 >= array.len() as u8 {
+            return;
+        }
+        let index = bit / 8;
+        let offset = bit % 8;
+        array[index as usize] |= 0x01 << offset
+    }
+
+    fn reset_bit(array: &mut [u8], bit: u8) {
+        if bit / 8 >= array.len() as u8 {
+            return;
+        }
+        let index = bit / 8;
+        let offset = bit % 8;
+        array[index as usize] &= !(0x01 << offset)
+    }
+}
+
+impl<'a, P: OneWirePinExt, D: DelayUs<u16>> core::iter::Iterator for DeviceSearch<'a, P, D> {
+    type Item = Device;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.state == SearchState::End {
+            return None;
+        }
+
+        let mut discrepancy_found = false;
+        let last_discrepancy = self.last_discrepancy();
+
+        if !self.port.reset(self.delay).is_ok() {
+            return None;
+        }
+
+        self.port.write_byte(self.delay, ROM_CMD_SEARCH_ROM).ok()?;
+
+        if let Some(last_discrepancy) = last_discrepancy {
+            // walk previous path
+            for i in 0..last_discrepancy {
+                let bit0 = self.port.read_bit(self.delay).ok()?;
+                let bit1 = self.port.read_bit(self.delay).ok()?;
+
+                if bit0 && bit1 {
+                    // no device responded
+                    return None;
+                } else {
+                    let bit = self.is_bit_set_in_address(i);
+                    // rom.write_bit_in_address(i, bit0);
+                    // rom.write_bit_in_discrepancy(i, bit);
+                    self.port.write_bit(self.delay, bit).ok()?;
+                }
+            }
+        } else {
+            // no discrepancy and device found, meaning the one found is the only one
+            if self.state == SearchState::DeviceFound {
+                self.state = SearchState::End;
+                return None;
+            }
+        }
+
+        for i in last_discrepancy.unwrap_or(0)..ADDRESS_BITS {
+            let bit0 = self.port.read_bit(self.delay).ok()?; // normal bit
+            let bit1 = self.port.read_bit(self.delay).ok()?; // complementar bit
+
+            if last_discrepancy.eq(&Some(i)) {
+                // be sure to go different path from before (go second path, thus writing 1)
+                self.reset_bit_in_discrepancy(i);
+                self.set_bit_in_address(i);
+                self.port.write_bit(self.delay, true).ok()?;
+            } else {
+                if bit0 && bit1 {
+                    // no response received
+                    return None;
+                }
+
+                if !bit0 && !bit1 {
+                    // addresses with 0 and 1
+                    // found new path, go first path by default (thus writing 0)
+                    discrepancy_found |= true;
+                    self.set_bit_in_discrepancy(i);
+                    self.reset_bit_in_address(i);
+                    self.port.write_bit(self.delay, false).ok();
+                } else {
+                    // addresses only with bit0
+                    self.write_bit_in_address(i, bit0);
+                    self.port.write_bit(self.delay, bit0).ok();
+                }
+            }
+        }
+
+        if !discrepancy_found && self.last_discrepancy().is_none() {
+            self.state = SearchState::End;
+        } else {
+            self.state = SearchState::DeviceFound;
+        }
+        Some(Device { address: self.address })
+    }
+}
 
 pub struct OneWire<P: OneWirePinExt> {
     pin: P,
@@ -154,7 +306,8 @@ impl<P: OneWirePinExt> OneWire<P> {
         Ok(Device { address: rom })
     }
 
-    pub fn search_device<'a>(&'a mut self, delay: &'a mut impl DelayUs<u16>) -> DeviceSearch<'a, P> {
+    /// To identify all of the slave devices
+    pub fn search_device<'a, D: DelayUs<u16>>(&'a mut self, delay: &'a mut D) -> DeviceSearch<'a, P, D> {
         DeviceSearch {
             address: [0u8; 8],
             discrepancies: [0u8; 8],
