@@ -132,6 +132,7 @@ where
             }
             i += 1;
             if i >= buflen {
+                self.skip_to_next();
                 return Err(EspAtError::BufOverflow);
             }
         }
@@ -148,6 +149,7 @@ where
             }
             i += 1;
             if i >= buflen {
+                self.skip_to_next();
                 return Err(EspAtError::BufOverflow);
             }
         }
@@ -155,7 +157,9 @@ where
 
     fn read_nbytes(&mut self, n: usize) -> Result<&[u8], EspAtError<ER, EW>> {
         if n > self.read_buf.len() {
-            self.skip_to_next();
+            for _ in 0..n {
+                self.read_byte()?;
+            }
             return Err(EspAtError::BufOverflow);
         }
 
@@ -279,7 +283,10 @@ where
     pub fn tcp_send(&mut self, host: &str, port: u16, buf: &[u8]) -> Result<(), EspAtError<ER, EW>> {
         self.connect_tcp(host, port).map_err(|_| EspAtError::NoConnection)?;
         self.send(buf)?;
-        self.read()?;
+        // read 1 packet
+        let _ = self.read();
+        // read all remain packets
+        self.skip_read()?;
         self.close()
     }
 
@@ -319,6 +326,27 @@ where
         self.read_response().map(|_| ())
     }
 
+    /// Skip all possible data.
+    /// Skip and send "AT", if it returns OK, then all read data is received.
+    pub fn skip_read(&mut self) -> Result<(), EspAtError<ER, EW>> {
+        loop {
+            // TODO: use delay
+            for _ in 0..5_000_000 {
+                unsafe {
+                    asm!("nop");
+                }
+            }
+            self.skip_to_next();
+
+            let _ = self.send_command("AT");
+            if let Ok(_) = self.read_response() {
+                break;
+            }
+        }
+        Ok(())
+    }
+
+    /// Read a packet
     pub fn read(&mut self) -> Result<&[u8], EspAtError<ER, EW>> {
         // +IPD,103: ...
         self.read_until(b'+')?;
@@ -334,6 +362,8 @@ where
 
     /// AT+CIPCLOSE
     pub fn close(&mut self) -> Result<(), EspAtError<ER, EW>> {
+        self.skip_to_next();
+
         self.write_all(b"AT+CIPCLOSE")?;
         self.write_crlf()?;
 
