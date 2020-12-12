@@ -11,6 +11,8 @@ pub mod pmsx003;
 
 pub mod lm75;
 
+pub mod onewire;
+
 /// A fmt::Write for bytes.
 pub struct ByteMutWriter<'a> {
     buf: &'a mut [u8],
