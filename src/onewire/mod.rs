@@ -3,6 +3,10 @@
 use embedded_hal::blocking::delay::DelayUs;
 use embedded_hal::digital::v2::{InputPin, OutputPin};
 
+pub use self::ds18b20::DS18B20;
+
+pub mod ds18b20;
+
 const ADDRESS_BYTES: u8 = 8;
 const ADDRESS_BITS: u8 = ADDRESS_BYTES * 8;
 
@@ -37,6 +41,10 @@ impl Device {
     pub fn family_code(&self) -> u8 {
         self.address[0]
     }
+
+    pub fn is_crc_ok(&self) -> bool {
+        ensure_crc(&self.address[..])
+    }
 }
 
 impl ::core::fmt::Debug for Device {
@@ -55,6 +63,7 @@ impl ::core::fmt::Debug for Device {
         )
     }
 }
+
 impl core::str::FromStr for Device {
     type Err = core::num::ParseIntError;
 
@@ -375,4 +384,24 @@ impl<P: OneWirePinExt> OneWire<P> {
         delay.delay_us(61);
         Ok(val)
     }
+}
+
+pub fn ensure_crc(data: &[u8]) -> bool {
+    compute_partial_crc8(0, data) == 0
+}
+
+fn compute_partial_crc8(crc: u8, data: &[u8]) -> u8 {
+    let mut crc = crc;
+    for byte in data.iter() {
+        let mut byte = *byte;
+        for _ in 0..8 {
+            let mix = (crc ^ byte) & 0x01;
+            crc >>= 1;
+            if mix != 0x00 {
+                crc ^= 0x8C;
+            }
+            byte >>= 1;
+        }
+    }
+    crc
 }
