@@ -15,3 +15,37 @@ pub const CMD_COPY_SCRATCHPAD: u8 = 0x48;
 pub const CMD_RECALL_EEPROM: u8 = 0xb8;
 /// Determines if any DS18B20s on the bus are using parasite power.
 pub const CMD_POWER_SUPPLY: u8 = 0xb4;
+
+#[repr(u8)]
+pub enum Resolution {
+    Nine = 0b000_11111,
+    Ten = 0b001_11111,
+    Eleven = 0b010_11111,
+    Twelve = 0b011_11111,
+}
+
+impl Resolution {
+    pub fn bits(&self) -> u8 {
+        match self {
+            Resolution::Nine => 9,
+            Resolution::Ten => 10,
+            Resolution::Eleven => 11,
+            Resolution::Twelve => 12,
+        }
+    }
+
+    fn conversion_time_ms(&self) -> u16 {
+        match self {
+            Resolution::Nine => 94,
+            Resolution::Ten => 188,
+            Resolution::Eleven => 375,
+            Resolution::Twelve => 750,
+        }
+    }
+}
+
+impl Default for Resolution {
+    fn default() -> Self {
+        Resolution::Twelve
+    }
+}
