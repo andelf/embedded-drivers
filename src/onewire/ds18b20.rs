@@ -34,7 +34,7 @@ impl Resolution {
         }
     }
 
-    fn conversion_time_ms(&self) -> u16 {
+    pub fn conversion_time_ms(&self) -> u16 {
         match self {
             Resolution::Nine => 94,
             Resolution::Ten => 188,
