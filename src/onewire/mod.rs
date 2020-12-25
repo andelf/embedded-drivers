@@ -51,15 +51,15 @@ impl ::core::fmt::Debug for Device {
     fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
         write!(
             f,
-            "{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}",
+            "{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}",
             self.address[0],
-            self.address[1],
-            self.address[2],
-            self.address[3],
-            self.address[4],
-            self.address[5],
             self.address[6],
-            self.address[7],
+            self.address[5],
+            self.address[4],
+            self.address[3],
+            self.address[2],
+            self.address[1],
+            // self.address[7],
         )
     }
 }
@@ -346,21 +346,21 @@ impl<P: OneWirePinExt> OneWire<P> {
         Ok(())
     }
 
-    fn write_bit(&mut self, delay: &mut impl DelayUs<u16>, high: bool) -> Result<(), Error> {
-        // master write
-        let pin = self.pin.to_output();
-        pin.set_low().unwrap();
-        delay.delay_us(if high { 10 } else { 65 });
-        pin.set_high().unwrap();
-        delay.delay_us(if high { 55 } else { 5 });
-        Ok(())
-    }
-
     pub fn read_bytes(&mut self, delay: &mut impl DelayUs<u16>, dst: &mut [u8]) -> Result<(), Error> {
         for d in dst {
             *d = self.read_byte(delay)?;
         }
         Ok(())
+    }
+
+    pub fn read_bit(&mut self, delay: &mut impl DelayUs<u16>) -> Result<bool, Error> {
+        self.pin.to_output().set_low().unwrap();
+        delay.delay_us(3);
+        let pin = self.pin.to_input();
+        delay.delay_us(2);
+        let val = pin.is_high().unwrap();
+        delay.delay_us(61);
+        Ok(val)
     }
 
     pub fn read_byte(&mut self, delay: &mut impl DelayUs<u16>) -> Result<u8, Error> {
@@ -374,16 +374,38 @@ impl<P: OneWirePinExt> OneWire<P> {
         Ok(byte)
     }
 
-    pub fn read_bit(&mut self, delay: &mut impl DelayUs<u16>) -> Result<bool, Error> {
-        self.pin.to_output().set_low().unwrap();
-        delay.delay_us(3);
-        let pin = self.pin.to_input();
-        delay.delay_us(2);
-
-        let val = pin.is_high().unwrap();
-        delay.delay_us(61);
-        Ok(val)
+    fn write_bit(&mut self, delay: &mut impl DelayUs<u16>, high: bool) -> Result<(), Error> {
+        // master write
+        let pin = self.pin.to_output();
+        pin.set_low().unwrap();
+        delay.delay_us(if high { 10 } else { 65 });
+        pin.set_high().unwrap();
+        delay.delay_us(if high { 55 } else { 5 });
+        Ok(())
     }
+}
+
+/// A device on wire.
+pub struct OneWireDevice<'a, P: OneWirePinExt> {
+    wire: &'a mut OneWire<P>,
+    dev: Option<Device>,
+}
+
+impl<P: OneWirePinExt> OneWireDevice<'_, P> {
+    fn select_device<D: DelayUs<u16>>(&mut self, delay: &mut D) -> Result<(), Error> {
+        if let Some(ref dev) = self.dev {
+            self.wire.reset(delay)?;
+            self.wire.write_byte(delay, ROM_CMD_MATCH_ROM)?; // match rom
+            self.wire.write_bytes(delay, dev)?;
+            Ok(())
+        } else {
+            self.wire.reset(delay)?;
+            self.wire.write_byte(delay, ROM_CMD_SKIP_ROM)?;
+            Ok(())
+        }
+    }
+
+    pub fn release(self) {}
 }
 
 pub fn ensure_crc(data: &[u8]) -> bool {

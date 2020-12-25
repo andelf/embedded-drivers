@@ -1,3 +1,5 @@
+use super::Device;
+
 /// DS18B20 digital thermometer.
 pub struct DS18B20;
 
@@ -48,4 +50,46 @@ impl Default for Resolution {
     fn default() -> Self {
         Resolution::Twelve
     }
+}
+
+pub struct Config {
+    pub resolution: Resolution,
+    pub t_h: i8,
+    pub t_l: i8,
+}
+
+impl Default for Config {
+    fn default() -> Self {
+        Config {
+            resolution: Resolution::Twelve,
+            t_h: 125,
+            t_l: -55,
+        }
+    }
+}
+
+pub trait DB18B20Ext {
+    /// Write Scratchpad
+    fn set_config(&mut self, config: Config);
+
+    fn read_config(&mut self) -> Config;
+
+    /// Convert T
+    fn start_measurement(&mut self);
+
+    /// Read Scratchpad
+    fn read_measurement(&mut self) -> f32;
+
+    /// Read raw measurement, avoiding using floats.
+    fn read_raw_measurement(&mut self) -> [u8; 2];
+
+    // Save config to EEPROM
+    /// Copy Scratchpad
+    fn save_config(&mut self);
+
+    /// Recall E^2
+    fn load_saved_config(&mut self);
+
+    /// Read Power Supply
+    fn is_parasite(&mut self) -> bool;
 }
