@@ -52,7 +52,7 @@ where
         let mut checksum: u16 = 0;
 
         loop {
-            let c = self.read_byte()?;
+            let c = self.must_read_byte();
             match i {
                 0..=3 if c == PREFIX[i] => {
                     checksum += c as u16;
@@ -94,6 +94,14 @@ where
 
     pub fn release(self) -> S {
         self.serial
+    }
+
+    fn must_read_byte(&mut self) -> u8 {
+        loop {
+            if let Ok(b) = self.read_byte() {
+                return b;
+            }
+        }
     }
 
     fn read_byte(&mut self) -> Result<u8, ()> {
