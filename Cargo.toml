@@ -1,11 +1,11 @@
 [package]
 name = "embedded-drivers"
-version = "0.0.1"
+version = "0.0.2"
 authors = ["Andelf <andelf@gmail.com>"]
 edition = "2018"
 license = "MIT OR Apache-2.0"
 keywords = ["embedded-hal-driver"]
-description = "Platform-agnostic Rust drivers for embedded."
+description = "Platform-agnostic Rust drivers for BME280/BMP280/BMP180, LM75, PMSx003"
 readme = "README.md"
 categories = ["embedded", "hardware-support", "no-std"]
 repository = "https://github.com/andelf/embedded-drivers"
