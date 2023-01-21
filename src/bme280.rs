@@ -131,20 +131,18 @@ struct CalibrationData {
 
 /// Measurement data
 #[cfg_attr(feature = "serde", derive(Serialize))]
-#[derive(Debug)]
-pub struct Measurements<E> {
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
+pub struct Measurements {
     /// temperature in degrees celsius
     pub temperature: f32,
     /// pressure in pascals
     pub pressure: f32,
     /// percent relative humidity (`0` with BMP280)
     pub humidity: f32,
-    #[cfg_attr(feature = "serde", serde(skip))]
-    _e: PhantomData<E>,
 }
 
-impl<E> Measurements<E> {
-    fn parse(
+impl Measurements {
+    fn parse<E>(
         data: [u8; BME280_P_T_H_DATA_LEN],
         calibration: &mut CalibrationData,
     ) -> Result<Self, Error<E>> {
@@ -170,11 +168,10 @@ impl<E> Measurements<E> {
             temperature,
             pressure,
             humidity,
-            _e: PhantomData,
         })
     }
 
-    fn compensate_temperature(
+    fn compensate_temperature<E>(
         uncompensated: u32,
         calibration: &mut CalibrationData,
     ) -> Result<f32, Error<E>> {
@@ -196,7 +193,7 @@ impl<E> Measurements<E> {
         Ok(temperature)
     }
 
-    fn compensate_pressure(
+    fn compensate_pressure<E>(
         uncompensated: u32,
         calibration: &mut CalibrationData,
     ) -> Result<f32, Error<E>> {
@@ -227,7 +224,7 @@ impl<E> Measurements<E> {
         Ok(pressure)
     }
 
-    fn compensate_humidity(
+    fn compensate_humidity<E>(
         uncompensated: u32,
         calibration: &mut CalibrationData,
     ) -> Result<f32, Error<E>> {
@@ -386,7 +383,7 @@ where
     }
 
     /// Captures and processes sensor data for temperature, pressure, and humidity
-    pub fn measure<D: DelayMs<u8>>(&mut self, delay: &mut D) -> Result<Measurements<E>, Error<E>> {
+    pub fn measure<D: DelayMs<u8>>(&mut self, delay: &mut D) -> Result<Measurements, Error<E>> {
         self.forced(delay)?;
         delay.delay_ms(40); // await measurement
         let measurements = self.read_data(BME280_DATA_ADDR)?;
