@@ -1,5 +1,4 @@
 #![no_std]
-#![feature(asm)]
 
 use core::fmt;
 use core::str;

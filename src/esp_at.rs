@@ -2,12 +2,12 @@
 //!
 //! Ref: https://docs.espressif.com/projects/esp-at/en/latest/AT_Command_Set/index.html
 
+use crate::ByteMutWriter;
+use core::arch::asm;
 use core::fmt::Write;
 use core::str;
 use embedded_hal::serial;
 use nb::block;
-
-use crate::ByteMutWriter;
 
 const CR: u8 = 0x0d;
 const LF: u8 = 0x0a;
