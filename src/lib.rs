@@ -3,12 +3,13 @@
 use core::fmt;
 use core::str;
 
+pub mod bh1750;
 pub mod bme280;
 pub mod bmp180;
+pub mod ds1302;
 pub mod esp_at;
-pub mod pmsx003;
-
 pub mod lm75;
+pub mod pmsx003;
 
 pub mod onewire;
 
@@ -63,10 +64,7 @@ impl<'a> ByteMutWriter<'a> {
 impl fmt::Write for ByteMutWriter<'_> {
     fn write_str(&mut self, s: &str) -> fmt::Result {
         let cap = self.capacity();
-        for (i, &b) in self.buf[self.cursor..cap]
-            .iter_mut()
-            .zip(s.as_bytes().iter())
-        {
+        for (i, &b) in self.buf[self.cursor..cap].iter_mut().zip(s.as_bytes().iter()) {
             *i = b;
         }
         self.cursor = usize::min(cap, self.cursor + s.as_bytes().len());

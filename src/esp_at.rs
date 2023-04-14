@@ -6,7 +6,7 @@ use crate::ByteMutWriter;
 use core::arch::asm;
 use core::fmt::Write;
 use core::str;
-use embedded_hal::serial;
+use embedded_hal_02::serial;
 use nb::block;
 
 const CR: u8 = 0x0d;

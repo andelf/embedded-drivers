@@ -1,7 +1,7 @@
 //! The Dallas 1-wire driver.
 
-use embedded_hal::blocking::delay::DelayUs;
-use embedded_hal::digital::v2::{InputPin, OutputPin};
+use embedded_hal_02::blocking::delay::DelayUs;
+use embedded_hal_02::digital::v2::{InputPin, OutputPin};
 
 pub use self::ds18b20::DS18B20;
 

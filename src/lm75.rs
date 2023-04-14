@@ -1,7 +1,6 @@
 //! LM75 temperature sensor
-//!
 
-use embedded_hal::blocking::i2c::{Read, Write, WriteRead};
+use embedded_hal_02::blocking::i2c::{Read, Write, WriteRead};
 
 const LM75_I2CADDR: u8 = 0x48;
 
@@ -11,6 +10,7 @@ pub struct LM75<I> {
 
 impl<I: Write + WriteRead + Read> LM75<I> {
     /// Create device driver instance.
+    #[deprecated = "This is a simple sensor, read directly using I2C instead"]
     pub fn new(i2c: I) -> Self {
         LM75 { device: i2c }
     }

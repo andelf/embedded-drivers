@@ -1,8 +1,8 @@
 //! BMP180 Digital pressure sensor.
 //!
 
-use embedded_hal::blocking::delay::DelayMs;
-use embedded_hal::blocking::i2c::{Read, Write, WriteRead};
+use embedded_hal_02::blocking::delay::DelayMs;
+use embedded_hal_02::blocking::i2c::{Read, Write, WriteRead};
 use num_traits::Pow;
 
 // BMP180, BMP085 address.
@@ -185,11 +185,7 @@ impl<I: Write + WriteRead + Read> BMP180<I> {
     }
 
     /// Calculate pressure at sea level
-    pub fn calculate_sealevel_pressure<D: DelayMs<u8>>(
-        &mut self,
-        delay: &mut D,
-        altitude_m: f32,
-    ) -> u32 {
+    pub fn calculate_sealevel_pressure<D: DelayMs<u8>>(&mut self, delay: &mut D, altitude_m: f32) -> u32 {
         let pressure = self.get_pressure(delay) as f32;
         let p0 = pressure / (1.0 - altitude_m / 44330.0).pow(5.255);
         p0 as u32
