@@ -53,7 +53,7 @@ where
         self.i2c
     }
 
-    pub fn init<DELAY: DelayUs>(&mut self, config: Config, delay: &mut DELAY) -> Result<(), I2C::Error> {
+    pub fn init(&mut self, config: Config, delay: &mut impl DelayUs) -> Result<(), I2C::Error> {
         // power on
         self.i2c.write(self.address, &[0x01])?;
         // defaults to Continuously H-Resolution Mode

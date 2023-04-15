@@ -1,7 +1,6 @@
 use embedded_hal::{
     delay::DelayUs,
     digital::{InputPin, OutputPin},
-    spi::{SpiBus, SpiBusRead, SpiBusWrite},
 };
 
 pub trait InOutPin {
@@ -34,7 +33,7 @@ where
         ThreeWire { ce, io, clk }
     }
 
-    fn read_byte<D: DelayUs>(&mut self, delay: &mut D) -> u8 {
+    fn read_byte(&mut self, delay: &mut impl DelayUs) -> u8 {
         let mut byte = 0u8;
         for i in 0..8 {
             byte |= (self.io.as_input().is_high().unwrap() as u8) << i;
@@ -46,7 +45,7 @@ where
         byte
     }
 
-    fn write_byte<D: DelayUs>(&mut self, delay: &mut D, byte: u8) {
+    fn write_byte(&mut self, byte: u8, delay: &mut impl DelayUs) {
         for i in 0..8 {
             if (byte >> i) & 1 != 0 {
                 self.io.as_output().set_high().unwrap();
@@ -61,11 +60,11 @@ where
         }
     }
 
-    pub fn read_reg<D: DelayUs>(&mut self, delay: &mut D, addr: u8) -> u8 {
+    pub fn read_reg(&mut self, addr: u8, delay: &mut impl DelayUs) -> u8 {
         self.ce.set_high().unwrap();
         self.io.set_output();
         delay.delay_us(10_u32);
-        self.write_byte(delay, addr);
+        self.write_byte(addr, delay);
 
         self.io.set_input();
         delay.delay_us(10_u32);
@@ -74,21 +73,24 @@ where
         out
     }
 
-    pub fn write_reg<D: DelayUs>(&mut self, delay: &mut D, addr: u8, val: u8) {
+    pub fn write_reg(&mut self, addr: u8, val: u8, delay: &mut impl DelayUs) {
         self.ce.set_high().unwrap();
         self.io.set_output();
         delay.delay_us(10_u32);
-        self.write_byte(delay, addr);
+        self.write_byte(addr, delay);
         delay.delay_us(10_u32);
-        self.write_byte(delay, val);
+        self.write_byte(val, delay);
         self.io.set_input();
         self.ce.set_low().unwrap();
     }
 
-    pub fn read_hms<D: DelayUs>(&mut self, delay: &mut D) -> (u8, u8, u8) {
-        let mut h = self.read_reg(delay, 0x85);
-        let mut m = self.read_reg(delay, 0x83);
-        let mut s = self.read_reg(delay, 0x81);
+    /// Hour 0-23
+    /// Minute 0-59
+    /// Second 0-59
+    pub fn read_hms(&mut self, delay: &mut impl DelayUs) -> (u8, u8, u8) {
+        let mut h = self.read_reg(0x85, delay);
+        let mut m = self.read_reg(0x83, delay);
+        let mut s = self.read_reg(0x81, delay);
 
         #[cfg(feature = "defmt")]
         defmt::info!("h: {:02x}, m: {:02x}, s: {:02x}", h, m, s);
@@ -100,10 +102,13 @@ where
         (h, m, s)
     }
 
-    pub fn read_ymd<D: DelayUs>(&mut self, delay: &mut D) -> (u8, u8, u8) {
-        let mut y = self.read_reg(delay, 0x8d);
-        let mut m = self.read_reg(delay, 0x89);
-        let mut d = self.read_reg(delay, 0x87);
+    /// Year 0-99
+    /// Month 1-12
+    /// Day 1-31
+    pub fn read_ymd(&mut self, delay: &mut impl DelayUs) -> (u8, u8, u8) {
+        let mut y = self.read_reg(0x8d, delay);
+        let mut m = self.read_reg(0x89, delay);
+        let mut d = self.read_reg(0x87, delay);
 
         #[cfg(feature = "defmt")]
         defmt::info!("y: {:02x}, m: {:02x}, d: {:02x}", y, m, d);
@@ -116,24 +121,24 @@ where
     }
 
     /// Weekday 1-7
-    pub fn read_day<D: DelayUs>(&mut self, delay: &mut D) -> u8 {
-        let day = self.read_reg(delay, 0x8b);
+    pub fn read_day(&mut self, delay: &mut impl DelayUs) -> u8 {
+        let day = self.read_reg(0x8b, delay);
         day
     }
 
-    pub fn set_hms<D: DelayUs>(&mut self, delay: &mut D, h: u8, m: u8, s: u8) {
-        self.write_reg(delay, 0x84, ((h / 10) << 4) | (h % 10));
-        self.write_reg(delay, 0x82, ((m / 10) << 4) | (m % 10));
-        self.write_reg(delay, 0x80, ((s / 10) << 4) | (s % 10));
+    pub fn set_hms(&mut self, h: u8, m: u8, s: u8, delay: &mut impl DelayUs) {
+        self.write_reg(0x84, ((h / 10) << 4) | (h % 10), delay);
+        self.write_reg(0x82, ((m / 10) << 4) | (m % 10), delay);
+        self.write_reg(0x80, ((s / 10) << 4) | (s % 10), delay);
     }
-    pub fn set_ymd<D: DelayUs>(&mut self, delay: &mut D, y: u8, m: u8, d: u8) {
-        self.write_reg(delay, 0x8c, ((y / 10) << 4) | (y % 10));
-        self.write_reg(delay, 0x88, ((m / 10) << 4) | (m % 10));
-        self.write_reg(delay, 0x86, ((d / 10) << 4) | (d % 10));
+    pub fn set_ymd<D: DelayUs>(&mut self, y: u8, m: u8, d: u8, delay: &mut impl DelayUs) {
+        self.write_reg(0x8c, ((y / 10) << 4) | (y % 10), delay);
+        self.write_reg(0x88, ((m / 10) << 4) | (m % 10), delay);
+        self.write_reg(0x86, ((d / 10) << 4) | (d % 10), delay);
     }
-    pub fn set_day<D: DelayUs>(&mut self, delay: &mut D, day: u8) {
+    pub fn set_day<D: DelayUs>(&mut self, day: u8, delay: &mut impl DelayUs) {
         if day >= 1 && day <= 7 {
-            self.write_reg(delay, 0x8a, day);
+            self.write_reg(0x8a, day, delay);
         }
     }
 }
