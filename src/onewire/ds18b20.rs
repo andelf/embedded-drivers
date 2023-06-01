@@ -1,5 +1,3 @@
-use super::Device;
-
 /// DS18B20 digital thermometer.
 pub struct DS18B20;
 

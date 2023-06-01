@@ -6,8 +6,8 @@
 //! Pressure resolution: 0.18 Pa
 //! Temperature resolution: 0.01 C
 
-use embedded_hal::delay::DelayUs;
-use embedded_hal::i2c::I2c;
+use embedded_hal_1::delay::DelayUs;
+use embedded_hal_1::i2c::I2c;
 
 #[cfg(feature = "serde")]
 use serde::Serialize;

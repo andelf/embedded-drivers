@@ -14,7 +14,7 @@ homepage = "https://github.com/andelf/embedded-drivers"
 [dependencies]
 nb = "1"
 embedded-hal-02 = { package = "embedded-hal", version = "0.2", features = ["unproven"] }
-embedded-hal = { version = "1.0.0-alpha.10" }
+embedded-hal-1 = {  package = "embedded-hal", version = "1.0.0-alpha.10" }
 num-traits = { version = "0.2.15", default-features = false, features = ["libm"] }
 defmt = { version = "0.3", optional = true }
 embedded-graphics-framebuf = "0.2.0"

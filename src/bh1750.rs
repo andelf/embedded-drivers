@@ -1,4 +1,4 @@
-use embedded_hal::{delay::DelayUs, i2c::I2c};
+use embedded_hal_1::{delay::DelayUs, i2c::I2c};
 
 /// BH1750 Ambient Light Sensor(ALS)
 ///
